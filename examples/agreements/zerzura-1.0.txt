@@ -1,0 +1,42 @@
+Zerzura Data Use Undertaking
+Version 1.0
+
+DRAFT. This text has not been reviewed by counsel. Read it, change it, and make
+it your own before serving anything that matters.
+
+This undertaking is given to the town "zerzura" by the person identified as the
+subject of the credential presented alongside it. It is a direct undertaking to
+this town. It neither replaces nor modifies any agreement the undersigned holds
+with any other party, and no such agreement is required to be disclosed to this
+town.
+
+By signing the digest of this document with the private key bound to that
+credential subject, I affirm that:
+
+1. I hold credentialed access to PhysioNet and have signed the PhysioNet
+   Credentialed Health Data Use Agreement, version 1.5.0.
+
+2. I extend to any result I receive from this town the same undertakings I gave
+   in that agreement. In particular:
+
+   a. I will not attempt to identify any individual or institution referenced
+      in, or derivable from, those results.
+   b. I will not share access to those results with anyone who has not given
+      this same undertaking.
+   c. I will maintain the physical and electronic security of those results.
+   d. I will use them solely for lawful scientific research.
+
+3. I will promptly report any apparent identifying information to this town's
+   operator, and will not further examine or distribute it.
+
+4. I understand that results from this town are aggregate statistics protected
+   by minimum-cell-size suppression; that suppression is not a formal privacy
+   guarantee; and that deliberately composing multiple queries in order to
+   isolate an individual or a small group would breach paragraph 2(a), whether
+   or not any single query is refused.
+
+5. I understand that this undertaking is recorded in this town's local audit
+   log, together with my credential subject identifier and the time of signing,
+   and that my requests are recorded there too.
+
+These obligations continue after I stop requesting results from this town.

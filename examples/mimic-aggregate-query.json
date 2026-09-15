@@ -1,0 +1,5 @@
+{
+  "cohort": [{"field": "admission_type", "op": "eq", "value": "EW EMER."}],
+  "aggregate": "mortality_rate",
+  "group_by": ["age_group"]
+}
