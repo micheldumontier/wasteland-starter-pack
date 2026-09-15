@@ -131,7 +131,9 @@ would an SSH key.
 
 **An undertaking is a promise, not an enforcement mechanism.** It gives you a
 signed, non-repudiable record of what someone agreed to, and a basis to act if
-they break it. It does not prevent them breaking it.
+they break it. It does not prevent them breaking it. Paragraph 4 of the
+agreement still matters even though the differencing attack is now blocked
+technically, because two colluding subjects each stay within their own ledger.
 
 Every request — answered, refused or unbound — is appended to a local audit
 database (`.town/mimic-audit.sqlite`, mode 0600) with the relay-authenticated
@@ -177,10 +179,44 @@ falls below the threshold, even `cohort_size` is withheld. A query producing
 more than 50 groups is refused rather than truncated, since a truncated table
 plus a total also leaks.
 
-This is cell suppression, not differential privacy: `privacy.differential_privacy`
-is `false` in every reply. It offers no formal guarantee against an adversary who
-combines many overlapping queries. The audit log exists so that such a pattern
-can at least be detected after the fact.
+### Sequences, not just single queries
+
+Cell suppression works one query at a time, and that is not enough. Consider:
+
+```
+Q1  women, elective admissions                     -> 197
+Q2  women, elective admissions, every race but one -> 194
+```
+
+Both cohorts are large. Both answers pass suppression. Their difference is 3 —
+exactly the category that was too small to release. Neither query is illegal;
+the pair is.
+
+So this town remembers which records answered each request, per credential
+subject, and refuses a request whose membership differs from something already
+answered by a non-zero amount below the minimum cell size. Groups within a
+single request are compared to each other as well. Each subject also has a
+rolling request budget, because a large enough family of individually-legal
+queries is itself an attack.
+
+The check runs *after* the query executes and *before* anything is returned: a
+refused request is computed locally and discarded, and the reply carries no
+counts at all.
+
+Membership is stored as record identifiers in a local ledger
+(`.town/mimic-ledger.sqlite`, mode 0600). That is what makes the check exact
+rather than heuristic. Those identifiers are never placed in a reply — a test
+asserts it — and the ledger never leaves the machine.
+
+Tunable with `WASTELAND_MIMIC_BUDGET` (default 50), `WASTELAND_MIMIC_BUDGET_WINDOW`
+(hours, default 24) and `WASTELAND_MIMIC_HISTORY` (membership sets retained per
+subject, default 400). A shorter history is cheaper and weaker: an attacker who
+waits long enough falls off the end of it.
+
+This is still not differential privacy — `privacy.differential_privacy` is
+`false` in every reply. It closes the differencing attack exactly, and it
+constrains volume, but it offers no formal guarantee against an adversary who
+is patient, or who has outside knowledge the ledger cannot see.
 
 ## Running it
 
@@ -233,5 +269,7 @@ The four gates, in the order they are applied:
 2. **Holder binding** — a single-use challenge signed by the subject's key
 3. **Undertaking** — a signed assent to this town's current agreement
 4. **Query limits** — allowlisted fields, then cell suppression on the result
+5. **Composition** — the request is checked against what this subject has
+   already been told, and refused if the difference would isolate anyone
 
 Tests: `python3 tests/run_checks.py` (see `tests/test_mimic_service.py`).

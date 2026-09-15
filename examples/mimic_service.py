@@ -163,8 +163,9 @@ def _fetch(query, path):
     selected = [DIMENSIONS[field] for field in query["group_by"]]
     measure = MEASURES.get(query.get("measure"), "NULL")
     where, params = _where(query["cohort"])
+    # stay_id is selected for the local ledger only; it never enters a reply.
     sql = (
-        "SELECT " + ", ".join(selected + [measure, "a.hospital_expire_flag"])
+        "SELECT " + ", ".join(selected + [measure, "a.hospital_expire_flag", "s.stay_id"])
         + " " + FROM_CLAUSE + where + f" LIMIT {MAX_ROWS + 1}"
     )
     if not path.exists():
@@ -200,8 +201,17 @@ def _summarise(values, expired, aggregate):
     return round(median, 2)
 
 
-def run(query, path=None):
-    """Execute a validated query and return only suppressed aggregates."""
+def group_label(key):
+    """Stable name for a group, shared with the ledger."""
+    return ",".join(f"{k}={v}" for k, v in sorted(key.items())) or "all"
+
+
+def run(query, path=None, with_membership=False):
+    """Execute a validated query and return only suppressed aggregates.
+
+    With ``with_membership``, also returns which records answered it, for the
+    local differencing ledger. That structure must never reach a reply.
+    """
     query = validate(query)
     path = Path(path) if path else database_path()
     rows = _fetch(query, path)
@@ -210,9 +220,10 @@ def run(query, path=None):
     buckets = {}
     for row in rows:
         key = tuple(row[:width])
-        values, expired = buckets.setdefault(key, ([], []))
+        values, expired, members = buckets.setdefault(key, ([], [], set()))
         values.append(row[width])
         expired.append(row[width + 1])
+        members.add(row[width + 2])
 
     if len(buckets) > MAX_GROUPS:
         raise QueryError(
@@ -225,21 +236,29 @@ def run(query, path=None):
             "n": len(values),
             "value": _summarise(values, expired, query["aggregate"]),
         }
-        for key, (values, expired) in buckets.items()
+        for key, (values, expired, _) in buckets.items()
     ]
+    membership = {
+        "cohort": {row[width + 2] for row in rows},
+        "groups": {
+            group_label(dict(zip(query["group_by"], key))): members
+            for key, (_, _, members) in buckets.items()
+        },
+    }
     groups.sort(key=lambda group: (-group["n"], str(group["key"])))
     cohort_size = len(rows)
 
     notes = []
     if cohort_size < MIN_CELL:
         # Reporting even the total would describe fewer than MIN_CELL stays.
-        return {
+        withheld = {
             "cohort_size": None,
             "groups": [],
             "suppressed": True,
             "privacy": _privacy(["whole cohort below the minimum cell size"]),
             "query": query,
         }
+        return (withheld, {"cohort": set(), "groups": {}}) if with_membership else withheld
 
     small = [group for group in groups if group["n"] < MIN_CELL]
     for group in small:
@@ -258,13 +277,14 @@ def run(query, path=None):
             group["n"] = None
             group["value"] = None
 
-    return {
+    result = {
         "cohort_size": cohort_size,
         "groups": groups,
         "suppressed": bool(small),
         "privacy": _privacy(notes),
         "query": query,
     }
+    return (result, membership) if with_membership else result
 
 
 def _privacy(notes):

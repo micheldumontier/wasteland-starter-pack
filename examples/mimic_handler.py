@@ -38,6 +38,7 @@ from wasteland.client import default_handler
 
 from . import agreement as undertaking
 from . import camelot_trust
+from . import mimic_budget as budget
 from . import mimic_presentation as presentation
 from . import mimic_service as service
 
@@ -230,6 +231,11 @@ def handle(message, config):
                 "challenge_operation": "mimic-challenge",
                 "undertaking_required": undertaking.agreement()["version"],
                 "agreement_operation": "mimic-agreement",
+                "composition_control": (
+                    "requests that differ from an already-answered request by fewer "
+                    f"than {service.MIN_CELL} records are refused, and each subject "
+                    "has a rolling request budget"
+                ),
                 "warning": KEY_TRUST_NOTE,
             },
         }
@@ -351,7 +357,7 @@ def handle(message, config):
 
     started = time.monotonic()
     try:
-        result = service.run(body.get("query", {}))
+        result, membership = service.run(body.get("query", {}), with_membership=True)
     except service.QueryError as error:
         _audit(requester, message_id, check, operation, body.get("query"), f"rejected: {error}")
         return {
@@ -361,6 +367,28 @@ def handle(message, config):
             "credential_check": check,
             "query_contract": service.schema(),
         }
+
+    # The query has run locally, but nothing is released until the sequence is
+    # checked: a request that is legal alone can still isolate people in combination.
+    ledger = budget.CohortLedger()
+    try:
+        spend = ledger.check_budget(check["subject"])
+        ledger.check_differencing(
+            check["subject"], service_membership := budget.membership_sets(result, membership)
+        )
+        ledger.record(check["subject"], service_membership)
+    except budget.BudgetError as error:
+        _audit(requester, message_id, check, operation, result["query"], f"withheld: {error}")
+        return {
+            "ok": False,
+            "operation": operation,
+            "error": str(error),
+            "credential_check": {**check, **binding},
+            "privacy": {"composition_control": "cohort-differencing-ledger-v1",
+                        "minimum_cell_size": service.MIN_CELL},
+        }
+    finally:
+        ledger.close()
 
     _audit(
         requester, message_id, check, operation, result["query"],
@@ -378,6 +406,8 @@ def handle(message, config):
         "cohort_size": result["cohort_size"],
         "groups": result["groups"],
         "suppressed": result["suppressed"],
-        "privacy": result["privacy"],
+        "privacy": {**result["privacy"],
+                    "composition_control": "cohort-differencing-ledger-v1",
+                    "budget": spend},
         "elapsed_seconds": round(time.monotonic() - started, 3),
     }
