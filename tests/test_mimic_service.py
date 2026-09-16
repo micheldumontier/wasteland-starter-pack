@@ -1,6 +1,7 @@
 """The gated aggregate service: query allowlist, cell suppression, credential gate."""
 
 import base64
+import json
 import os
 import tempfile
 import unittest
@@ -135,6 +136,44 @@ def _apply_suppression(groups):
         if remaining:
             min(remaining, key=lambda g: g["n"])["suppressed"] = "complementary-suppression"
     return groups
+
+
+class DescribeTests(unittest.TestCase):
+    """describe is the operation a stranger tries first; it must say something."""
+
+    def describe(self):
+        return mimic_handler.handle(
+            {"from": "visitor", "id": "urn:uuid:d", "body": {"operation": "describe"}},
+            {"name": "zerzura", "display": "Zerzura", "capabilities": ["describe"]},
+        )
+
+    def test_it_says_what_the_town_is_for(self):
+        reply = self.describe()
+        self.assertTrue(reply["ok"])
+        self.assertIn("ICU", reply["description"])
+        self.assertIn("never", reply["description"])
+
+    def test_it_declares_whether_the_data_is_synthetic(self):
+        self.assertIn("synthetic", self.describe()["dataset"])
+
+    def test_it_points_at_the_open_contract_and_states_the_gates(self):
+        reply = self.describe()
+        self.assertIn("mimic-schema", reply["text"])
+        self.assertIn("mimic-schema", reply["access"]["open_operations"])
+        self.assertIn("mimic-aggregate", reply["access"]["credentialed_operations"])
+        self.assertIn("Five conditions", reply["access"]["summary"])
+
+    def test_it_admits_what_it_does_not_establish(self):
+        text = self.describe()["not_established"]
+        self.assertIn("PhysioNet", text)
+        self.assertIn("differential privacy", text)
+
+    def test_it_never_leaks_the_town_credential(self):
+        reply = mimic_handler.handle(
+            {"from": "visitor", "id": "urn:uuid:d", "body": {"operation": "describe"}},
+            {"name": "zerzura", "token": "SECRET-TOKEN", "capabilities": []},
+        )
+        self.assertNotIn("SECRET-TOKEN", json.dumps(reply))
 
 
 class CredentialGateTests(unittest.TestCase):

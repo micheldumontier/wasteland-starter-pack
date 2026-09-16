@@ -5,6 +5,7 @@ Run with:
     python3 -m wasteland work --handler examples.mimic_handler:handle
 
 Operations
+    describe         what this town is for, and how to approach it; open
     mimic-schema     the public query contract and dataset descriptor; open
     mimic-agreement  this town's data use undertaking, with its digest; open
     mimic-challenge  a single-use challenge to bind a presentation; open
@@ -238,6 +239,54 @@ def handle(message, config):
                 ),
                 "warning": KEY_TRUST_NOTE,
             },
+        }
+
+    if operation == "describe":
+        # The operation a stranger tries first. The default handler answers it
+        # with a bare verb list, which says nothing about what the town is for.
+        dataset = service.dataset()
+        return {
+            "ok": True,
+            "name": config["name"],
+            "display": config.get("display", config["name"]),
+            "capabilities": config.get("capabilities", []),
+            "description": (
+                "Zerzura answers statistical questions about ICU patients for "
+                "requesters who can prove they are entitled to ask, and never "
+                "releases a record. Cohorts are named from an allowlist, results "
+                "are suppressed below a minimum cell size, and a request is "
+                "refused when subtracting it from an earlier answer would "
+                "describe individuals."
+            ),
+            "dataset": {
+                "name": dataset.get("name"),
+                "schema": "MIMIC-IV",
+                "synthetic": dataset.get("synthetic"),
+                "unit_of_analysis": "icu_stay",
+                "icu_stays": dataset.get("icu_stays"),
+                "licence": dataset.get("licence"),
+            },
+            "access": {
+                "summary": (
+                    "Five conditions, in order: a credential signed by an issuer "
+                    "Camelot publishes a key for; proof you hold the key it names; "
+                    "a signed undertaking to this town; an allowlisted query; and a "
+                    "composition check against what you have already been told."
+                ),
+                "open_operations": ["echo", "describe", "mimic-schema", "mimic-challenge"],
+                "credentialed_operations": ["dua-assent", "mimic-aggregate"],
+                "accepted_issuers": list(_trusted_issuers()),
+            },
+            "not_established": (
+                "PhysioNet is never consulted; issuer keys arrive over the same "
+                "relay that carries these messages; and cell suppression is not "
+                "differential privacy."
+            ),
+            "source": "https://github.com/micheldumontier/wasteland-starter-pack",
+            "text": (
+                "Send operation mimic-schema for the full query contract and "
+                "limits. No credential is needed to read it."
+            ),
         }
 
     if operation == "mimic-agreement":
