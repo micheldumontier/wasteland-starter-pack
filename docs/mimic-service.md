@@ -256,9 +256,14 @@ Serve the open MIMIC-IV demo — 100 real de-identified patients, no credentiale
 account or data use agreement needed to download it:
 
 ```bash
-# https://physionet.org/content/mimic-iv-demo/2.2/ - hosp/ and icu/ CSVs
-python3 -m examples.mimic_load --source ./mimic-iv-demo --out .town/mimic.sqlite
+python3 -m examples.mimic_load --out .town/mimic.sqlite
 ```
+
+The three tables it reads are bundled in `examples/data/mimic-iv-demo` under the
+Open Data Commons Open Database License; see the `LICENCE.txt` beside them. That
+licence covers the data directory only — the rest of the repository is
+Apache-2.0. Pass `--source` to load a copy you downloaded yourself from
+<https://physionet.org/content/mimic-iv-demo/2.2/>.
 
 Or generate a synthetic fixture, if you would rather not download anything:
 

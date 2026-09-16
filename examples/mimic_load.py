@@ -14,7 +14,11 @@ themselves, protects nothing and misrepresents what the town is doing.
 A database built from *credentialed* MIMIC-IV must not carry that declaration.
 Databases with no ``dataset_meta`` table are treated as non-public by default.
 
-    python3 -m examples.mimic_load --source ./mimic-iv-demo --out .town/mimic.sqlite
+    python3 -m examples.mimic_load --out .town/mimic.sqlite
+
+The three tables it reads are bundled in ``examples/data/mimic-iv-demo`` under
+the ODbL; see the LICENCE.txt beside them. Pass ``--source`` to load a copy you
+downloaded yourself.
 """
 
 import argparse
@@ -57,6 +61,10 @@ TABLES = {
     ),
 }
 NUMERIC = {"subject_id", "hadm_id", "stay_id", "anchor_age", "hospital_expire_flag", "los"}
+
+# The three tables this service reads are bundled, under their own licence, so
+# that the repository's checks run against real data without a download.
+BUNDLED = Path(__file__).parent / "data" / "mimic-iv-demo"
 
 
 def _open(source, relative):
@@ -117,8 +125,8 @@ def build(source, out):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source", type=Path, required=True,
-                        help="directory holding the demo CSVs")
+    parser.add_argument("--source", type=Path, default=BUNDLED,
+                        help=f"directory holding the demo CSVs (default: {BUNDLED})")
     parser.add_argument("--out", type=Path, default=Path(".town/mimic.sqlite"))
     args = parser.parse_args()
     counts = build(args.source, args.out)

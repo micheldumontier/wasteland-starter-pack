@@ -1,0 +1,33 @@
+MIMIC-IV Clinical Database Demo, version 2.2
+============================================
+
+This directory contains three tables from the MIMIC-IV Clinical Database Demo,
+redistributed verbatim: hosp/patients, hosp/admissions and icu/icustays. They
+are the only tables this town's service reads. The other 23 tables of the demo,
+and the full MIMIC-IV database, are not included.
+
+Source
+    https://physionet.org/content/mimic-iv-demo/2.2/
+
+Licence
+    Open Data Commons Open Database License (ODbL) v1.0
+    https://opendatacommons.org/licenses/odbl/1-0/
+
+    This licence covers the data in this directory only. The rest of this
+    repository is Apache-2.0; see ../../../LICENSE. ODbL is share-alike: a
+    database derived from this data must be offered under ODbL, and any
+    redistribution must keep this notice and the citation below.
+
+Citation
+    Johnson, A., Bulgarelli, L., Pollard, T., Horng, S., Celi, L. A., & Mark, R.
+    (2023). MIMIC-IV Clinical Database Demo (version 2.2). PhysioNet.
+    https://doi.org/10.13026/dp1f-ex47
+
+    Pollard, T., et al. (2026). PhysioNet as a global platform for biomedical
+    research. Nature Health. https://doi.org/10.1038/s44360-026-00096-z
+
+These are real, de-identified records from Beth Israel Deaconess Medical Center.
+The demo is open access: no credentialed PhysioNet account and no data use
+agreement are required to obtain it. They are bundled here so that this
+repository's evidence document can run against real data from a clean checkout,
+with no network access.

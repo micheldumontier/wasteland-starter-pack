@@ -144,7 +144,9 @@ privacy.
 
 It serves the [MIMIC-IV Clinical Database Demo](https://physionet.org/content/mimic-iv-demo/2.2/)
 — 100 real de-identified patients, openly licensed, needing no credentialed
-account to download. Because those rows are already public, no suppression is
+account to download. The three tables it reads are bundled in
+[examples/data/mimic-iv-demo](examples/data/mimic-iv-demo) under the ODbL, so
+the checks run against real data from a clean checkout. Because those rows are already public, no suppression is
 applied to them and the reply says so. Disclosure control is a property of the
 dataset: anything that does not declare itself public, including a credentialed
 MIMIC-IV database, gets the full treatment by default.
