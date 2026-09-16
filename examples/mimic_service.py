@@ -35,6 +35,7 @@ AGGREGATES = ("count", "mean", "median", "mortality_rate")
 OPERATORS = ("eq", "in")
 
 MIN_CELL = 10          # groups smaller than this are suppressed, never rounded
+                       # ...unless the dataset declares itself public; see policy()
 MAX_FILTERS = 8
 MAX_IN_VALUES = 20
 MAX_GROUP_BY = 2
@@ -72,6 +73,33 @@ def schema():
             "max_group_by": MAX_GROUP_BY,
             "max_groups_returned": MAX_GROUPS,
         },
+    }
+
+
+def policy(path=None):
+    """How much disclosure control this dataset needs.
+
+    A dataset that declares itself public gets none: suppressing a cell of three
+    when anyone can download the rows protects nothing, and pretending otherwise
+    misrepresents the control. Anything that does not declare itself public --
+    including any database with no ``dataset_meta`` table, which is what real
+    MIMIC-IV looks like -- gets the full treatment. The default is strict.
+    """
+    meta = dataset(path)
+    if meta.get("public") is True:
+        return {
+            "minimum_cell_size": None,
+            "disclosure_control": "none",
+            "reason": (
+                "this dataset declares itself openly licensed; its row-level data "
+                "is already downloadable by anyone, so suppression would protect "
+                "nothing"
+            ),
+        }
+    return {
+        "minimum_cell_size": MIN_CELL,
+        "disclosure_control": "cell-suppression",
+        "reason": "dataset is not declared public; full disclosure control applies",
     }
 
 
@@ -215,6 +243,8 @@ def run(query, path=None, with_membership=False):
     query = validate(query)
     path = Path(path) if path else database_path()
     rows = _fetch(query, path)
+    control = policy(path)
+    minimum = control["minimum_cell_size"]
     width = len(query["group_by"])
 
     buckets = {}
@@ -249,18 +279,18 @@ def run(query, path=None, with_membership=False):
     cohort_size = len(rows)
 
     notes = []
-    if cohort_size < MIN_CELL:
+    if minimum is not None and cohort_size < minimum:
         # Reporting even the total would describe fewer than MIN_CELL stays.
         withheld = {
             "cohort_size": None,
             "groups": [],
             "suppressed": True,
-            "privacy": _privacy(["whole cohort below the minimum cell size"]),
+            "privacy": _privacy(["whole cohort below the minimum cell size"], control),
             "query": query,
         }
         return (withheld, {"cohort": set(), "groups": {}}) if with_membership else withheld
 
-    small = [group for group in groups if group["n"] < MIN_CELL]
+    small = [] if minimum is None else [g for g in groups if g["n"] < minimum]
     for group in small:
         group["suppressed"] = "below-minimum-cell-size"
     if small:
@@ -281,16 +311,20 @@ def run(query, path=None, with_membership=False):
         "cohort_size": cohort_size,
         "groups": groups,
         "suppressed": bool(small),
-        "privacy": _privacy(notes),
+        "privacy": _privacy(notes, control),
         "query": query,
     }
     return (result, membership) if with_membership else result
 
 
-def _privacy(notes):
+def _privacy(notes, control=None):
+    control = control or policy()
+    applied = control["disclosure_control"]
     return {
-        "method": "allowlisted-query-with-cell-suppression-v1",
-        "minimum_cell_size": MIN_CELL,
+        "method": f"allowlisted-query-with-{applied}-v1",
+        "disclosure_control": applied,
+        "disclosure_control_reason": control["reason"],
+        "minimum_cell_size": control["minimum_cell_size"],
         "row_level_data_returned": False,
         "differential_privacy": False,
         "notes": notes,
@@ -316,4 +350,6 @@ def dataset(path=None):
         db.close()
     meta["configured"] = True
     meta["synthetic"] = {"true": True, "false": False}.get(meta.get("synthetic"), "unknown")
+    # Absent or unparseable means not public. Never fail open.
+    meta["public"] = meta.get("public") == "true"
     return meta

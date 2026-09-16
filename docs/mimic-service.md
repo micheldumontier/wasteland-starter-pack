@@ -171,6 +171,38 @@ Ask `mimic-schema` for the live contract rather than hard-coding this list.
 
 ## What keeps the results non-identifying
 
+### Disclosure control belongs to the dataset, not the town
+
+How much protection a result needs depends on what it is a result *about*. The
+MIMIC-IV Clinical Database Demo is distributed under the Open Data Commons Open
+Database License: anyone can download all 100 patients' rows without an account.
+Suppressing a cell of three from that data protects nothing, and a control that
+protects nothing while appearing to is worse than none, because it misleads
+whoever relies on it.
+
+So a database may declare itself public, and one that does gets no suppression
+and no composition ledger. The reply says which control applied and why:
+
+```json
+"privacy": {
+  "disclosure_control": "none",
+  "disclosure_control_reason": "this dataset declares itself openly licensed;
+     its row-level data is already downloadable by anyone, so suppression would
+     protect nothing",
+  "minimum_cell_size": null
+}
+```
+
+**The default is strict, and the failure direction is deliberate.** A database
+gets relaxed treatment only if its `dataset_meta` table says `public` = `true`,
+spelled exactly. No table, no key, or any other value — including `TRUE`, `1`
+or `yes` — is treated as private. A credentialed MIMIC-IV database carries no
+`dataset_meta` at all, so it gets full disclosure control without anyone having
+to remember to configure it.
+
+Everything below therefore describes a dataset that has *not* declared itself
+public.
+
 Any group of fewer than **10** stays is suppressed — `n` and `value` become
 `null` with a `suppressed` reason — rather than rounded or noised. Because a
 single suppressed group can be recovered by subtracting the others from the
@@ -220,8 +252,23 @@ is patient, or who has outside knowledge the ledger cannot see.
 
 ## Running it
 
+Serve the open MIMIC-IV demo — 100 real de-identified patients, no credentialed
+account or data use agreement needed to download it:
+
+```bash
+# https://physionet.org/content/mimic-iv-demo/2.2/ - hosp/ and icu/ CSVs
+python3 -m examples.mimic_load --source ./mimic-iv-demo --out .town/mimic.sqlite
+```
+
+Or generate a synthetic fixture, if you would rather not download anything:
+
 ```bash
 python3 -m examples.mimic_fixture --out .town/mimic.sqlite      # synthetic, for development
+```
+
+Then:
+
+```bash
 python3 -m examples.camelot_trust --state .town --refresh       # required: issuer keys
 WASTELAND_MIMIC_DB=.town/mimic.sqlite \
   python3 -m wasteland work --handler examples.mimic_handler:handle
@@ -230,10 +277,11 @@ WASTELAND_MIMIC_DB=.town/mimic.sqlite \
 Without a trust store every credential is refused, so refresh it before serving
 and again whenever Camelot rotates a key.
 
-Point `WASTELAND_MIMIC_DB` at a real MIMIC-IV database to serve it. A real
-database carries no `dataset_meta` table, so replies will report
-`"name": "unlabelled", "synthetic": "unknown"` — add that table to describe what
-you are serving. `WASTELAND_MIMIC_TRUSTED_ISSUERS` (comma-separated URL
+Point `WASTELAND_MIMIC_DB` at a credentialed MIMIC-IV database to serve it. Such
+a database carries no `dataset_meta` table, so replies report
+`"name": "unlabelled", "synthetic": "unknown"` and it receives full disclosure
+control. Add that table to describe what you are serving — but do **not** set
+`public` on it. `WASTELAND_MIMIC_TRUSTED_ISSUERS` (comma-separated URL
 prefixes) sets the accepted issuers; `WASTELAND_MIMIC_REQUIRED_ROLES` gates on
 asserted roles; `WASTELAND_CAMELOT_TRUST` and `WASTELAND_MIMIC_AUDIT` relocate
 the trust store and the log.

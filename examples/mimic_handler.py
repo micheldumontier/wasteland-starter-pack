@@ -232,10 +232,11 @@ def handle(message, config):
                 "challenge_operation": "mimic-challenge",
                 "undertaking_required": undertaking.agreement()["version"],
                 "agreement_operation": "mimic-agreement",
+                "disclosure_control": service.policy(),
                 "composition_control": (
                     "requests that differ from an already-answered request by fewer "
                     f"than {service.MIN_CELL} records are refused, and each subject "
-                    "has a rolling request budget"
+                    "has a rolling request budget; not applied to a public dataset"
                 ),
                 "warning": KEY_TRUST_NOTE,
             },
@@ -418,7 +419,16 @@ def handle(message, config):
         }
 
     # The query has run locally, but nothing is released until the sequence is
-    # checked: a request that is legal alone can still isolate people in combination.
+    # checked: a request that is legal alone can still isolate people in
+    # combination. Skipped for a dataset whose rows are public already, since
+    # the composition control protects exactly what suppression protects.
+    control = service.policy()
+    if control["disclosure_control"] == "none":
+        spend = {"composition_control": "not applied", "reason": control["reason"]}
+        _audit(requester, message_id, check, operation, result["query"],
+               f"answered (public dataset): cohort={result['cohort_size']}")
+        return _answer(config, check, binding, assent, current, result, started, spend)
+
     ledger = budget.CohortLedger()
     try:
         spend = ledger.check_budget(check["subject"])
@@ -443,9 +453,15 @@ def handle(message, config):
         requester, message_id, check, operation, result["query"],
         f"answered: {len(result['groups'])} group(s), cohort={result['cohort_size']}",
     )
+    return _answer(config, check, binding, assent, current, result, started, spend)
+
+
+def _answer(config, check, binding, assent, current, result, started, spend):
+    composition = spend.get("composition_control", "cohort-differencing-ledger-v1")
+    remaining = {key: value for key, value in spend.items() if key != "composition_control"}
     return {
         "ok": True,
-        "operation": operation,
+        "operation": "mimic-aggregate",
         "town": config["name"],
         "method": "mimic-aggregate-v1",
         "credential_check": {**check, **binding},
@@ -456,7 +472,7 @@ def handle(message, config):
         "groups": result["groups"],
         "suppressed": result["suppressed"],
         "privacy": {**result["privacy"],
-                    "composition_control": "cohort-differencing-ledger-v1",
-                    "budget": spend},
+                    "composition_control": composition,
+                    "budget": remaining},
         "elapsed_seconds": round(time.monotonic() - started, 3),
     }

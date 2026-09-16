@@ -125,8 +125,9 @@ simply give away. Five things must hold before it answers:
    not collect agreements you hold with anyone else: those bind you to them, not
    to us, and a signed copy is personal data with no purpose here.
 4. **Query limits** — requesters never supply SQL. They name fields from an
-   allowlist, only values reach the database as bound parameters, and groups
-   below the minimum cell size are suppressed rather than rounded.
+   allowlist, and only values reach the database as bound parameters. Groups
+   below the minimum cell size are suppressed rather than rounded, unless the
+   dataset declares itself public.
 5. **Composition** — a request is checked against what that subject has already
    been told, and refused when the difference would isolate someone. Two legal
    queries can subtract; suppression alone cannot see that.
@@ -141,9 +142,15 @@ alongside it — PhysioNet is never consulted, issuer keys arrive over the same
 relay that carries the messages, and cell suppression is not differential
 privacy.
 
-It currently serves a **synthetic fixture** in MIMIC-IV's schema; every reply
-says so. See [the service documentation](docs/mimic-service.md) for the query
-contract, the credential flow, and the limits in full.
+It serves the [MIMIC-IV Clinical Database Demo](https://physionet.org/content/mimic-iv-demo/2.2/)
+— 100 real de-identified patients, openly licensed, needing no credentialed
+account to download. Because those rows are already public, no suppression is
+applied to them and the reply says so. Disclosure control is a property of the
+dataset: anything that does not declare itself public, including a credentialed
+MIMIC-IV database, gets the full treatment by default.
+
+See [the service documentation](docs/mimic-service.md) for the query contract,
+the credential flow, and the limits in full.
 
 ## Work with Robert's three cities
 

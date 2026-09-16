@@ -54,13 +54,14 @@ class AssentTests(unittest.TestCase):
             "WASTELAND_CAMELOT_TRUST": str(self.root / "trust.json"),
             "WASTELAND_MIMIC_CHALLENGES": str(here / "c.sqlite"),
             "WASTELAND_MIMIC_ASSENT": str(here / "s.sqlite"),
+            "WASTELAND_MIMIC_LEDGER": str(here / "l.sqlite"),
             "WASTELAND_MIMIC_AUDIT": str(here / "a.sqlite"),
             "WASTELAND_MIMIC_TRUSTED_ISSUERS": ISSUER.rsplit("/", 1)[0] + "/",
         })
 
     def tearDown(self):
         for name in ("WASTELAND_MIMIC_DB", "WASTELAND_CAMELOT_TRUST",
-                     "WASTELAND_MIMIC_CHALLENGES", "WASTELAND_MIMIC_ASSENT",
+                     "WASTELAND_MIMIC_CHALLENGES", "WASTELAND_MIMIC_ASSENT", "WASTELAND_MIMIC_LEDGER",
                      "WASTELAND_MIMIC_AUDIT", "WASTELAND_MIMIC_TRUSTED_ISSUERS",
                      "WASTELAND_MIMIC_AGREEMENT"):
             os.environ.pop(name, None)
