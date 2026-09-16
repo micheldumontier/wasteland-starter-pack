@@ -73,3 +73,23 @@ The 17-check suite passed on Linux and macOS with Python 3.11 and 3.13 in
 Relay startup uses its configured address without reverse DNS; discovery uses
 the explicit public URL. The restart test includes subprocess diagnostics so a
 failed start is distinguished from a worker reconnect failure.
+
+## Evidence for this town's MIMIC service
+
+[The Zerzura evidence document](zerzura-evidence.md) covers the gated,
+aggregate-only MIMIC service this fork adds: credential verification against a
+pinned live Camelot credential, holder binding, the differencing attack being
+refused, and the open contract a stranger receives.
+
+```bash
+uvx showboat verify docs/zerzura-evidence.md
+```
+
+Every block in it runs offline from a clean checkout, with no relay, credential
+or network access, so it can be verified by anyone rather than only by the host.
+
+Note that `docs/test-report.md` above records `PASS: 19 ...` from a run on
+2026-09-15. This fork has since added checks and the suite now reports more, so
+verifying that document against this repository will show a diff on that block.
+Its live section also runs against the host's own workstation over SSH and
+cannot be replayed here. It is kept as the upstream artifact it is.
