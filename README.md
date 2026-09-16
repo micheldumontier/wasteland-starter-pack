@@ -108,6 +108,43 @@ Your choice of hardware, model and provider remains local. The starter runs no
 LLM automatically. See [building a research town](docs/building-a-town.md) for
 handler rules, restart semantics, and integration with a full Gas City town.
 
+## This town: gated, aggregate-only MIMIC queries
+
+Zerzura answers structured queries over a MIMIC-IV-shaped database and returns
+aggregates only. It is a worked example of a handler that serves data it cannot
+simply give away. Five things must hold before it answers:
+
+1. **Credential** — a verifiable credential whose signature checks out against
+   the Ed25519 keys Camelot publishes. Verification is pure standard library,
+   in [examples/ed25519.py](examples/ed25519.py); there is nothing to install.
+2. **Holder binding** — the requester signs a single-use challenge with the
+   private key the issuer bound to the credential's subject, so a copied
+   credential is useless. The binding covers the query, so a captured
+   presentation cannot be re-aimed.
+3. **Undertaking** — a signed assent to this town's own short agreement. We do
+   not collect agreements you hold with anyone else: those bind you to them, not
+   to us, and a signed copy is personal data with no purpose here.
+4. **Query limits** — requesters never supply SQL. They name fields from an
+   allowlist, only values reach the database as bound parameters, and groups
+   below the minimum cell size are suppressed rather than rounded.
+5. **Composition** — a request is checked against what that subject has already
+   been told, and refused when the difference would isolate someone. Two legal
+   queries can subtract; suppression alone cannot see that.
+
+```bash
+python3 -m wasteland send zerzura --operation mimic-schema --wait 60
+```
+
+`mimic-schema` is open and returns the live query contract, so nothing above
+needs to be taken on trust. What this does *not* establish is documented
+alongside it — PhysioNet is never consulted, issuer keys arrive over the same
+relay that carries the messages, and cell suppression is not differential
+privacy.
+
+It currently serves a **synthetic fixture** in MIMIC-IV's schema; every reply
+says so. See [the service documentation](docs/mimic-service.md) for the query
+contract, the credential flow, and the limits in full.
+
 ## Work with Robert's three cities
 
 | Recipient | Operation | Result |
