@@ -110,7 +110,13 @@ class Client:
         return self.call("/v1/messages", message)
 
     def ask(self, to, *, operation="echo", text="", body=None):
-        message = envelope(self.name, to, text, operation, body=body)
+        # A supplied body replaces the default one entirely, so the operation has
+        # to be merged into it; otherwise a caller passing operation= alongside a
+        # body silently sends an echo. Matches the fix upstream.
+        message = envelope(
+            self.name, to, text, operation,
+            body=None if body is None else {"text": text, "operation": operation, **body},
+        )
         self.send(message)
         return message["id"]
 
