@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import unittest
+import unittest.mock
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -22,6 +23,10 @@ class StatusCheckTests(unittest.TestCase):
     def setUp(self):
         self.credential = mint()
         self.record = trust_record()
+        roots = unittest.mock.patch.dict(
+            os.environ, {"WASTELAND_CAMELOT_ROOT_ISSUERS": ISSUER})
+        roots.start()
+        self.addCleanup(roots.stop)
 
     def check(self, ask, **kwargs):
         return credential_status.check(
@@ -140,12 +145,14 @@ class HandlerRevocationTests(unittest.TestCase):
             "WASTELAND_MIMIC_AUDIT": str(here / "a.sqlite"),
             "WASTELAND_MIMIC_LEDGER": str(here / "l.sqlite"),
             "WASTELAND_MIMIC_TRUSTED_ISSUERS": ISSUER.rsplit("/", 1)[0] + "/",
+            "WASTELAND_CAMELOT_ROOT_ISSUERS": ISSUER,
         })
 
     def tearDown(self):
         for name in ("WASTELAND_CAMELOT_TRUST", "WASTELAND_MIMIC_CHALLENGES",
                      "WASTELAND_MIMIC_ASSENT", "WASTELAND_MIMIC_AUDIT",
                      "WASTELAND_MIMIC_LEDGER", "WASTELAND_MIMIC_TRUSTED_ISSUERS",
+                     "WASTELAND_CAMELOT_ROOT_ISSUERS",
                      "WASTELAND_MIMIC_DB"):
             os.environ.pop(name, None)
         self.environment.cleanup()

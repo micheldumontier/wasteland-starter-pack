@@ -266,13 +266,15 @@ class HandlerBindingTests(unittest.TestCase):
             "WASTELAND_MIMIC_ASSENT": str(Path(self.environment.name) / "s.sqlite"),
             "WASTELAND_MIMIC_LEDGER": str(Path(self.environment.name) / "l.sqlite"),
             "WASTELAND_MIMIC_TRUSTED_ISSUERS": ISSUER.rsplit("/", 1)[0] + "/",
+            "WASTELAND_CAMELOT_ROOT_ISSUERS": ISSUER,
         })
         self.install_stub_registrar()
 
     def tearDown(self):
         for name in ("WASTELAND_MIMIC_DB", "WASTELAND_CAMELOT_TRUST",
                      "WASTELAND_MIMIC_CHALLENGES", "WASTELAND_MIMIC_AUDIT",
-                     "WASTELAND_MIMIC_ASSENT", "WASTELAND_MIMIC_LEDGER", "WASTELAND_MIMIC_TRUSTED_ISSUERS"):
+                     "WASTELAND_MIMIC_ASSENT", "WASTELAND_MIMIC_LEDGER", "WASTELAND_MIMIC_TRUSTED_ISSUERS",
+                     "WASTELAND_CAMELOT_ROOT_ISSUERS"):
             os.environ.pop(name, None)
         self.environment.cleanup()
 

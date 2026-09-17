@@ -5,6 +5,7 @@ import json
 import os
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from examples import ed25519, mimic_fixture, mimic_handler, mimic_service as service
@@ -183,6 +184,11 @@ class CredentialGateTests(unittest.TestCase):
     def setUpClass(cls):
         cls.secret = bytes(range(32))
         cls.issuer = "https://w3id.org/academic-wasteland/camelot/issuers/test-council"
+        # Nothing accredits this test issuer, so it must be named as a root.
+        cls.roots = unittest.mock.patch.dict(
+            os.environ, {"WASTELAND_CAMELOT_ROOT_ISSUERS": cls.issuer})
+        cls.roots.start()
+        cls.addClassCleanup(cls.roots.stop)
         key = "ed25519:" + base64.urlsafe_b64encode(
             ed25519.public_key(cls.secret)
         ).decode().rstrip("=")

@@ -7,7 +7,9 @@ code or Camelot's signing construction has changed.
 
 import base64
 import copy
+import os
 import unittest
+import unittest.mock
 
 from examples import camelot_trust, ed25519
 from wasteland.protocol import canonical
@@ -154,6 +156,88 @@ class RealCamelotCredentialTests(unittest.TestCase):
                 copy.deepcopy(CAMELOT_CREDENTIAL),
                 record={"fetched": "x", "source": "x", "issuers": []},
             )
+
+
+class AccreditationTests(unittest.TestCase):
+    """Publishing an issuer is not the same as vouching for it."""
+
+    @classmethod
+    def setUpClass(cls):
+        from examples import ed25519
+        from wasteland.protocol import canonical
+        cls.root_secret, cls.child_secret = bytes(range(32)), bytes(range(32, 64))
+        key = lambda secret: "ed25519:" + base64.urlsafe_b64encode(
+            ed25519.public_key(secret)).decode().rstrip("=")
+        cls.root = "https://example.org/issuers/council"
+        cls.child = "https://example.org/issuers/board"
+        cls.orphan = "https://example.org/issuers/test-only"
+
+        def sign(document, secret):
+            document = dict(document)
+            document["proof"] = {
+                "type": camelot_trust.PROOF_TYPE,
+                "verificationMethod": document["issuer"] + "#key-1",
+                "proofValue": base64.urlsafe_b64encode(
+                    ed25519.sign(secret, canonical(document).encode())
+                ).decode().rstrip("="),
+            }
+            return document
+
+        cls.sign = staticmethod(sign)
+        accreditation = sign({
+            "id": "https://example.org/credentials/acc-1",
+            "type": ["VerifiableCredential", "Accreditation"],
+            "issuer": cls.root,
+            "credentialSubject": {"id": cls.child, "publicKey": key(cls.child_secret)},
+        }, cls.root_secret)
+        cls.record = {
+            "fetched": "2026-09-17T00:00:00+00:00", "source": "test",
+            "issuers": [
+                {"id": cls.root, "publicKey": key(cls.root_secret), "accreditations": []},
+                {"id": cls.child, "publicKey": key(cls.child_secret),
+                 "accreditations": [accreditation]},
+                {"id": cls.orphan, "publicKey": key(cls.child_secret), "accreditations": []},
+            ],
+        }
+
+    def credential(self, issuer, secret):
+        return self.sign({
+            "id": "https://example.org/credentials/holder-1",
+            "type": ["VerifiableCredential"],
+            "issuer": issuer,
+            "credentialSubject": {"id": "urn:participant:test", "holderKey": "ed25519:x"},
+        }, secret)
+
+    def test_an_accredited_issuer_is_accepted(self):
+        with unittest.mock.patch.dict(
+                os.environ, {"WASTELAND_CAMELOT_ROOT_ISSUERS": self.root}):
+            verdict = camelot_trust.verify_credential(
+                self.credential(self.child, self.child_secret), record=self.record)
+        self.assertTrue(verdict["verified"])
+        self.assertEqual(verdict["issuer_accredited_by"], self.root)
+
+    def test_an_unaccredited_issuer_is_refused_even_with_a_valid_signature(self):
+        """Exactly the deliberately unaccredited test issuer Camelot publishes."""
+        with unittest.mock.patch.dict(
+                os.environ, {"WASTELAND_CAMELOT_ROOT_ISSUERS": self.root}):
+            with self.assertRaises(camelot_trust.TrustError) as caught:
+                camelot_trust.verify_credential(
+                    self.credential(self.orphan, self.child_secret), record=self.record)
+        self.assertIn("not accredited", str(caught.exception))
+
+    def test_an_unaccredited_issuer_can_be_trusted_only_by_naming_it(self):
+        with unittest.mock.patch.dict(
+                os.environ, {"WASTELAND_CAMELOT_ROOT_ISSUERS": f"{self.root},{self.orphan}"}):
+            verdict = camelot_trust.verify_credential(
+                self.credential(self.orphan, self.child_secret), record=self.record)
+        self.assertTrue(verdict["verified"])
+        self.assertIn("configured root", verdict["issuer_accredited_by"])
+
+    def test_the_live_camelot_test_issuer_is_not_trusted_by_default(self):
+        from examples import camelot_trust as trust
+        self.assertEqual(
+            trust.roots(),
+            ("https://w3id.org/academic-wasteland/camelot/issuers/ethics-council",))
 
 
 if __name__ == "__main__":

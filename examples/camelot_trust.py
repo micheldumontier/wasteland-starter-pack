@@ -21,12 +21,22 @@ from wasteland.protocol import canonical
 from . import ed25519
 
 PROOF_TYPE = "PangenomeTownEd25519Jcs2026"
+# An issuer is acceptable only if some other issuer in the trust store verifiably
+# accredits it, or it is named here as a root. A prefix match is not enough: every
+# issuer a registrar publishes shares its prefix, including deliberately
+# unaccredited test issuers that must not be trusted for real access.
+DEFAULT_ROOTS = "https://w3id.org/academic-wasteland/camelot/issuers/ethics-council"
 DEFAULT_CACHE = ".town/camelot-trust.json"
 ALGORITHM = "Ed25519 over JCS-canonical JSON without the proof block"
 
 
 class TrustError(ValueError):
     """The credential could not be verified."""
+
+
+def roots():
+    raw = os.environ.get("WASTELAND_CAMELOT_ROOT_ISSUERS", DEFAULT_ROOTS)
+    return tuple(root.strip() for root in raw.split(",") if root.strip())
 
 
 def cache_path():
@@ -127,6 +137,14 @@ def verify_credential(credential, record=None, path=None):
     if not verified:
         raise TrustError("signature does not verify against the issuer's published key")
 
+    accredited = _accreditation(issuer, record, keys)
+    if accredited is None and issuer not in roots():
+        raise TrustError(
+            f"issuer {issuer} is not accredited by any issuer this town roots its "
+            "trust in, and is not itself a configured root; a registrar publishing "
+            "an issuer is not the same as vouching for it"
+        )
+
     return {
         "verified": True,
         "signature_checked": True,
@@ -134,7 +152,7 @@ def verify_credential(credential, record=None, path=None):
         "proof_type": proof.get("type"),
         "issuer": issuer,
         "verification_method": method,
-        "issuer_accredited_by": _accreditation(issuer, record, keys),
+        "issuer_accredited_by": accredited or f"{issuer} (configured root)",
         "key_source": {"source": record.get("source"), "fetched": record.get("fetched")},
     }
 
