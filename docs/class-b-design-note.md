@@ -6,7 +6,14 @@ implements none. This note assesses one concrete approach to building one: the
 REALM node architecture, an evaluation substrate for AI medical-device software
 over OMOP data, developed separately by this town's operator.
 
-It is a design assessment, not a plan. Nothing here is implemented.
+It is a design assessment, not a plan.
+
+**Decision, 2026-09-17: deferred.** This town will not execute user-contributed
+code against MIMIC data, and will not adopt the REALM substrate, for the
+foreseeable future. The assessment below is kept because the reasoning is
+durable and the B1/B2 distinction in it has already been folded back into the
+policy — not because the work is queued. Anyone reading this as a backlog item
+is reading it wrong.
 
 ## Why it is a candidate
 
