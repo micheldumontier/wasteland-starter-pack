@@ -97,6 +97,9 @@ def check(credential, *, record, ask, now=None, age=None):
     reference = credential.get("credentialStatus")
     body = {
         "operation": OPERATION,
+        # The registrar keys on "id", accepting either a credential or status ID.
+        # The other two are sent for clarity and ignored by it.
+        "id": credential.get("id"),
         "credential": credential.get("id"),
         "status_id": reference.get("id") if isinstance(reference, dict) else None,
     }
