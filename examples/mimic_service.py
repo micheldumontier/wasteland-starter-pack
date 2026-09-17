@@ -90,6 +90,7 @@ def policy(path=None):
         return {
             "minimum_cell_size": None,
             "disclosure_control": "none",
+            "revocation_check": "not-applicable",
             "reason": (
                 "this dataset declares itself openly licensed; its row-level data "
                 "is already downloadable by anyone, so suppression would protect "
@@ -99,6 +100,7 @@ def policy(path=None):
     return {
         "minimum_cell_size": MIN_CELL,
         "disclosure_control": "cell-suppression",
+        "revocation_check": "required",
         "reason": "dataset is not declared public; full disclosure control applies",
     }
 

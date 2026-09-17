@@ -6,7 +6,8 @@ it. This module closes that gap with a single-use challenge:
 1. the requester asks for a challenge, which is issued to their relay identity;
 2. they sign a binding over that challenge, the credential and the exact query,
    using the private key whose public half the issuer put in the credential;
-3. this town verifies that signature against ``credentialSubject.publicKey`` and
+3. this town verifies that signature against the holder key the credential names
+   (``credentialSubject.holderKey``, or ``publicKey`` on an accreditation) and
    spends the challenge, so the same presentation cannot be replayed.
 
 The binding covers the query, so a captured presentation cannot be re-aimed at a
@@ -47,13 +48,30 @@ def b64encode(raw):
     return base64.urlsafe_b64encode(raw).decode().rstrip("=")
 
 
+# A participant credential from pangenome-town's registrar names the holder's key
+# as holderKey; publicKey is what issuer accreditations use. Accept either, and
+# refuse a credential carrying both with different values rather than guessing.
+HOLDER_KEY_FIELDS = ("holderKey", "publicKey")
+
+
 def subject_key(credential):
     """The public key the issuer bound to the subject, inside the signed document."""
     subject = credential.get("credentialSubject")
     if not isinstance(subject, dict):
         raise PresentationError("credential carries no credentialSubject")
-    declared = subject.get("publicKey")
-    if not isinstance(declared, str) or not declared:
+    declared = {
+        field: subject[field]
+        for field in HOLDER_KEY_FIELDS
+        if isinstance(subject.get(field), str) and subject[field]
+    }
+    if len(set(declared.values())) > 1:
+        raise PresentationError(
+            "credential declares "
+            + " and ".join(f"{field}={value}" for field, value in sorted(declared.items()))
+            + "; a credential naming two different holder keys is ambiguous and is refused"
+        )
+    declared = next(iter(declared.values()), None)
+    if declared is None:
         raise PresentationError(
             "credential does not bind a public key to its subject, so the holder "
             "cannot be checked; ask the issuer for a credential that does"

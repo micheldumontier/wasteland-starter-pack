@@ -11,8 +11,9 @@ from pathlib import Path
 from examples import agreement as undertaking
 from examples import ed25519, mimic_budget, mimic_fixture, mimic_handler
 from examples import mimic_service as service
+from examples import credential_status
 from tests.test_holder_binding import (
-    HOLDER_SECRET, ISSUER, QUERY, b64, mint, sign_presentation, trust_record,
+    HOLDER_SECRET, ISSUER, stub_asker, QUERY, b64, mint, sign_presentation, trust_record,
 )
 
 
@@ -125,6 +126,7 @@ class DifferencingAttackTests(unittest.TestCase):
             "WASTELAND_MIMIC_TRUSTED_ISSUERS": ISSUER.rsplit("/", 1)[0] + "/",
         })
         self.give_assent()
+        self.install_stub_registrar()
 
     def tearDown(self):
         for name in ("WASTELAND_MIMIC_DB", "WASTELAND_CAMELOT_TRUST",
@@ -133,6 +135,12 @@ class DifferencingAttackTests(unittest.TestCase):
                      "WASTELAND_MIMIC_TRUSTED_ISSUERS"):
             os.environ.pop(name, None)
         self.environment.cleanup()
+
+    def install_stub_registrar(self):
+        """These tests are not about revocation; give them a registrar that works."""
+        original = credential_status.asker_for
+        credential_status.asker_for = lambda config: stub_asker(mint())
+        self.addCleanup(setattr, credential_status, "asker_for", original)
 
     def ask(self, body):
         return mimic_handler.handle(

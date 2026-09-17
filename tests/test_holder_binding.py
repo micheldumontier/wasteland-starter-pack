@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from examples import agreement as undertaking
+from examples import credential_status
 from examples import ed25519, mimic_fixture, mimic_handler
 from examples import mimic_presentation as presentation
 from wasteland.protocol import canonical
@@ -62,6 +63,34 @@ def mint(subject_key="bind", subject=SUBJECT):
         "proofValue": b64(ed25519.sign(ISSUER_SECRET, canonical(document).encode())),
     }
     return credential
+
+
+def signed_status(credential, status="active", as_of=None, secret=ISSUER_SECRET,
+                  issuer=ISSUER, valid_until=None):
+    """A registrar status statement, signed the way Camelot signs credentials."""
+    statement = {
+        "credential": credential.get("id"),
+        "status_id": "https://w3id.org/academic-wasteland/camelot/status/test",
+        "issuer": issuer,
+        "status": status,
+        "as_of": as_of or datetime.now(timezone.utc).isoformat(),
+    }
+    if valid_until:
+        statement["valid_until"] = valid_until
+    document = dict(statement)
+    statement["proof"] = {
+        "type": presentation.PROOF_TYPE,
+        "verificationMethod": issuer + "#key-1",
+        "proofValue": b64(ed25519.sign(secret, canonical(document).encode())),
+    }
+    return statement
+
+
+def stub_asker(credential, **overrides):
+    """Replaces the relay transport with a registrar that answers correctly."""
+    def ask(town, body):
+        return {"ok": True, "statement": signed_status(credential, **overrides)}
+    return ask
 
 
 def sign_presentation(challenge, secret, query=QUERY, credential=None, town="zerzura"):
@@ -238,6 +267,7 @@ class HandlerBindingTests(unittest.TestCase):
             "WASTELAND_MIMIC_LEDGER": str(Path(self.environment.name) / "l.sqlite"),
             "WASTELAND_MIMIC_TRUSTED_ISSUERS": ISSUER.rsplit("/", 1)[0] + "/",
         })
+        self.install_stub_registrar()
 
     def tearDown(self):
         for name in ("WASTELAND_MIMIC_DB", "WASTELAND_CAMELOT_TRUST",
@@ -245,6 +275,12 @@ class HandlerBindingTests(unittest.TestCase):
                      "WASTELAND_MIMIC_ASSENT", "WASTELAND_MIMIC_LEDGER", "WASTELAND_MIMIC_TRUSTED_ISSUERS"):
             os.environ.pop(name, None)
         self.environment.cleanup()
+
+    def install_stub_registrar(self):
+        """These tests are not about revocation; give them a registrar that works."""
+        original = credential_status.asker_for
+        credential_status.asker_for = lambda config: stub_asker(mint())
+        self.addCleanup(setattr, credential_status, "asker_for", original)
 
     def ask(self, body, requester="peer_lab"):
         message = {"from": requester, "id": "urn:uuid:" + body["operation"], "body": body}

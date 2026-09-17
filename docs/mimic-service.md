@@ -51,8 +51,11 @@ verified credential is accepted.
 
 Verifying the signature shows the credential is genuine. It does not show who is
 presenting it, so Zerzura also requires proof that the requester controls the key
-the credential names. Camelot binds that key inside the signed document, as
-`credentialSubject.publicKey`, which completes the chain:
+the credential names. The issuer binds that key inside the signed document — as
+`credentialSubject.holderKey` on a participant credential from the registrar's
+approval path, or `publicKey` on an issuer accreditation. Either is accepted; a
+credential carrying both with *different* values is refused as ambiguous rather
+than resolved by guessing. That completes the chain:
 
 ```
 Camelot's issuer key  signs →  the credential  names →  the subject's key  signs → this request
@@ -112,6 +115,37 @@ load-bearing and worth keeping in some form: paragraph 4, where the requester
 acknowledges that composing multiple queries to isolate an individual is a
 breach whether or not any single query is refused. Cell suppression cannot stop
 that technically, so it is closed here instead.
+
+### Revocation
+
+A verified signature proves a credential was issued. It says nothing about
+whether it still stands, and revocation is normally the control you can rely on
+being prompt. Before computing or releasing anything from a dataset that has not
+declared itself public, this town asks the registrar over the relay:
+
+```
+credential-status  ->  an issuer-signed statement carrying the credential id,
+                       status id, issuer, status, as_of and valid_until
+```
+
+The statement is verified with the same canonical-JSON Ed25519 construction as
+the credential, using the issuer key from **this town's trust store** — never a
+key that arrived with the response, since a registrar cannot be allowed to
+nominate the key used to check its own answer.
+
+**Every unresolved answer is a refusal.** Revoked, suspended, unknown, stale,
+future-dated, expired, unsigned, wrongly signed, about a different credential,
+from an untrusted issuer, malformed, or unreachable all mean no data. A
+statement older than `WASTELAND_MIMIC_STATUS_MAX_AGE` seconds (default 60) is
+stale.
+
+A public dataset is exempt, for the same reason it is exempt from suppression:
+withdrawing someone's access to rows anyone can download protects nothing.
+
+The relay `credential-status` operation does not exist yet — it is
+[issue #2](https://github.com/academic-wasteland/wasteland-starter-pack/issues/2)
+upstream. Until it does, this town cannot serve a non-public dataset at all,
+which is the correct failure direction.
 
 ### Limits — read before relying on this
 
@@ -319,10 +353,11 @@ undertaking on file; without any of the three, no data is returned.
 The four gates, in the order they are applied:
 
 1. **Credential** — signed by an issuer Camelot publishes a key for
-2. **Holder binding** — a single-use challenge signed by the subject's key
-3. **Undertaking** — a signed assent to this town's current agreement
-4. **Query limits** — allowlisted fields, then cell suppression on the result
-5. **Composition** — the request is checked against what this subject has
+2. **Revocation** — a fresh, issuer-signed `active` status (non-public datasets)
+3. **Holder binding** — a single-use challenge signed by the subject's key
+4. **Undertaking** — a signed assent to this town's current agreement
+5. **Query limits** — allowlisted fields, then cell suppression on the result
+6. **Composition** — the request is checked against what this subject has
    already been told, and refused if the difference would isolate anyone
 
 Tests: `python3 tests/run_checks.py` (see `tests/test_mimic_service.py`).

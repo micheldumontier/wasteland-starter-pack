@@ -35,10 +35,11 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from wasteland.client import default_handler
+from wasteland.client import RemoteError, default_handler
 
 from . import agreement as undertaking
 from . import camelot_trust
+from . import credential_status
 from . import mimic_budget as budget
 from . import mimic_presentation as presentation
 from . import mimic_service as service
@@ -230,6 +231,8 @@ def handle(message, config):
                 "trust_store": _trust_store_status(),
                 "holder_binding": "required; single-use signed challenge",
                 "challenge_operation": "mimic-challenge",
+                "revocation_check": service.policy()["revocation_check"],
+                "status_operation": credential_status.OPERATION,
                 "undertaking_required": undertaking.agreement()["version"],
                 "agreement_operation": "mimic-agreement",
                 "disclosure_control": service.policy(),
@@ -366,6 +369,36 @@ def handle(message, config):
                                  "verified": False, "status": "rejected"},
         }
 
+    # Revocation, before anything is computed or released. A verified signature
+    # proves issuance, not that the credential still stands. Skipped only for a
+    # dataset whose rows are public, where withdrawing access protects nothing.
+    control = service.policy()
+    revocation = {"checked": False, "reason": control["reason"]}
+    if control["revocation_check"] == "required":
+        try:
+            revocation = credential_status.check(
+                body["credential"],
+                record=camelot_trust.load(),
+                ask=credential_status.asker_for(config),
+            )
+        except (credential_status.StatusError, camelot_trust.TrustError,
+                RemoteError, OSError, ValueError) as error:
+            _audit(requester, message_id, check, operation, body.get("query"),
+                   f"status unresolved: {error}")
+            return {
+                "ok": False,
+                "operation": operation,
+                "error": f"credential status could not be established: {error}",
+                "credential_check": check,
+                "revocation": {"checked": False, "status": "unresolved",
+                               "policy": "fail-closed"},
+                "hint": (
+                    f"this town requires a signed, fresh '{credential_status.OPERATION}' "
+                    f"answer from {credential_status.status_town()} before releasing "
+                    "data from a non-public dataset"
+                ),
+            }
+
     store = presentation.ChallengeStore()
     try:
         binding = presentation.verify_presentation(
@@ -422,12 +455,11 @@ def handle(message, config):
     # checked: a request that is legal alone can still isolate people in
     # combination. Skipped for a dataset whose rows are public already, since
     # the composition control protects exactly what suppression protects.
-    control = service.policy()
     if control["disclosure_control"] == "none":
         spend = {"composition_control": "not applied", "reason": control["reason"]}
         _audit(requester, message_id, check, operation, result["query"],
                f"answered (public dataset): cohort={result['cohort_size']}")
-        return _answer(config, check, binding, assent, current, result, started, spend)
+        return _answer(config, check, binding, assent, current, result, started, spend, revocation)
 
     ledger = budget.CohortLedger()
     try:
@@ -453,10 +485,10 @@ def handle(message, config):
         requester, message_id, check, operation, result["query"],
         f"answered: {len(result['groups'])} group(s), cohort={result['cohort_size']}",
     )
-    return _answer(config, check, binding, assent, current, result, started, spend)
+    return _answer(config, check, binding, assent, current, result, started, spend, revocation)
 
 
-def _answer(config, check, binding, assent, current, result, started, spend):
+def _answer(config, check, binding, assent, current, result, started, spend, revocation):
     composition = spend.get("composition_control", "cohort-differencing-ledger-v1")
     remaining = {key: value for key, value in spend.items() if key != "composition_control"}
     return {
@@ -465,6 +497,7 @@ def _answer(config, check, binding, assent, current, result, started, spend):
         "town": config["name"],
         "method": "mimic-aggregate-v1",
         "credential_check": {**check, **binding},
+        "revocation": revocation,
         "undertaking": {**assent, "digest": current["digest"]},
         "dataset": service.dataset(),
         "query": result["query"],

@@ -112,23 +112,26 @@ handler rules, restart semantics, and integration with a full Gas City town.
 
 Zerzura answers structured queries over a MIMIC-IV-shaped database and returns
 aggregates only. It is a worked example of a handler that serves data it cannot
-simply give away. Five things must hold before it answers:
+simply give away. Six things must hold before it answers:
 
 1. **Credential** — a verifiable credential whose signature checks out against
    the Ed25519 keys Camelot publishes. Verification is pure standard library,
    in [examples/ed25519.py](examples/ed25519.py); there is nothing to install.
-2. **Holder binding** — the requester signs a single-use challenge with the
+2. **Revocation** — for a non-public dataset, a fresh issuer-signed statement
+   that the credential is still active, verified against this town's own trust
+   store. Revoked, stale, unsigned or unreachable all mean no data.
+3. **Holder binding** — the requester signs a single-use challenge with the
    private key the issuer bound to the credential's subject, so a copied
    credential is useless. The binding covers the query, so a captured
    presentation cannot be re-aimed.
-3. **Undertaking** — a signed assent to this town's own short agreement. We do
+4. **Undertaking** — a signed assent to this town's own short agreement. We do
    not collect agreements you hold with anyone else: those bind you to them, not
    to us, and a signed copy is personal data with no purpose here.
-4. **Query limits** — requesters never supply SQL. They name fields from an
+5. **Query limits** — requesters never supply SQL. They name fields from an
    allowlist, and only values reach the database as bound parameters. Groups
    below the minimum cell size are suppressed rather than rounded, unless the
    dataset declares itself public.
-5. **Composition** — a request is checked against what that subject has already
+6. **Composition** — a request is checked against what that subject has already
    been told, and refused when the difference would isolate someone. Two legal
    queries can subtract; suppression alone cannot see that.
 

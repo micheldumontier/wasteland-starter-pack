@@ -10,8 +10,9 @@ from pathlib import Path
 
 from examples import agreement as undertaking
 from examples import ed25519, mimic_fixture, mimic_handler
+from examples import credential_status
 from tests.test_holder_binding import (
-    HOLDER_SECRET, ISSUER, OTHER_SECRET, QUERY, b64, mint, sign_presentation,
+    HOLDER_SECRET, ISSUER, stub_asker, OTHER_SECRET, QUERY, b64, mint, sign_presentation,
     trust_record,
 )
 
@@ -58,6 +59,7 @@ class AssentTests(unittest.TestCase):
             "WASTELAND_MIMIC_AUDIT": str(here / "a.sqlite"),
             "WASTELAND_MIMIC_TRUSTED_ISSUERS": ISSUER.rsplit("/", 1)[0] + "/",
         })
+        self.install_stub_registrar()
 
     def tearDown(self):
         for name in ("WASTELAND_MIMIC_DB", "WASTELAND_CAMELOT_TRUST",
@@ -66,6 +68,12 @@ class AssentTests(unittest.TestCase):
                      "WASTELAND_MIMIC_AGREEMENT"):
             os.environ.pop(name, None)
         self.environment.cleanup()
+
+    def install_stub_registrar(self):
+        """These tests are not about revocation; give them a registrar that works."""
+        original = credential_status.asker_for
+        credential_status.asker_for = lambda config: stub_asker(mint())
+        self.addCleanup(setattr, credential_status, "asker_for", original)
 
     def ask(self, body, requester="peer_lab"):
         return mimic_handler.handle(

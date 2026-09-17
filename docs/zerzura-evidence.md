@@ -19,7 +19,7 @@ python3 tests/run_checks.py
 ```
 
 ```output
-PASS: 90 relay, isolation, recovery and independent-worker checks
+PASS: 107 relay, isolation, recovery and independent-worker checks
 ```
 
 What the town serves, and what a stranger can learn without any credential. The data is 100 real de-identified patients from Beth Israel Deaconess, openly licensed under the ODbL. `describe` and `mimic-schema` are both open.
@@ -285,9 +285,10 @@ query 2 refused -- refused: this request differs from one already answered for t
 - **that issuer keys are trustworthy.** They are fetched from Camelot over the
   same relay that carries the messages, so trusting them means trusting the
   relay. Pin them out of band if that matters.
-- **that a revoked credential stops working.** Camelot's credentials carry a
-  `credentialStatus` block, but nothing publishes the status it points at, so
-  every gate passes until a credential expires on its own.
+- **that revocation works against the live registrar.** The verifier above is
+  exercised against a stub, because the relay `credential-status` operation does
+  not exist yet. What is shown is that this town refuses every unresolved
+  answer; what is not shown is a real registrar answering one.
 - **that the composition control is a formal privacy guarantee.** It is not
   differential privacy. It closes differencing exactly and constrains volume,
   but two subjects who collude each stay within their own ledger, and retained
@@ -295,3 +296,59 @@ query 2 refused -- refused: this request differs from one already answered for t
 
 Protocol delivery and scientific validation remain separate, as the starter
 pack puts it. This document is evidence about the first.
+
+A verified signature proves a credential was issued, not that it still stands. Before computing anything from a dataset that has not declared itself public, this town asks the registrar for an issuer-signed status statement and verifies it against the issuer key in its own trust store — never a key arriving with the response. Every unresolved answer is a refusal. The relay operation this calls does not exist yet, so the failure direction matters: a non-public dataset simply cannot be served until it does.
+
+```python
+import re
+from datetime import datetime, timedelta, timezone
+from examples import credential_status
+from tests.test_holder_binding import OTHER_SECRET, mint, signed_status, stub_asker, trust_record
+
+credential, record = mint(), trust_record()
+check = lambda ask, **kw: credential_status.check(credential, record=record, ask=ask, **kw)
+answering = lambda statement: (lambda town, body: {"ok": True, "statement": statement})
+ago = lambda s: (datetime.now(timezone.utc) - timedelta(seconds=s)).isoformat()
+# Timestamps differ every run; the reason for the refusal does not.
+scrub = lambda text: re.sub(r"\d{4}-\d{2}-\d{2}T[\d:.+\-]+", "<timestamp>", str(text))
+
+verdict = check(stub_asker(credential))
+print(f"{'fresh signed active':<38}: accepted, age within the "
+      f"{verdict['max_age_seconds']}s limit")
+
+unsigned = signed_status(credential); del unsigned["proof"]
+tampered = signed_status(credential); tampered["credential"] = "urn:credential:other"
+def unreachable(town, body):
+    raise credential_status.StatusError("registrar unreachable: connection refused")
+
+for label, ask in (
+    ("revoked",                     stub_asker(credential, status="revoked")),
+    ("suspended",                   stub_asker(credential, status="suspended")),
+    ("unknown",                     stub_asker(credential, status="unknown")),
+    ("stale (120s old, limit 60s)", stub_asker(credential, as_of=ago(120))),
+    ("expired valid_until",         stub_asker(credential, valid_until=ago(1))),
+    ("signed by another key",       stub_asker(credential, secret=OTHER_SECRET)),
+    ("unsigned",                    answering(unsigned)),
+    ("altered after signing",       answering(tampered)),
+    ("registrar unreachable",       unreachable),
+):
+    try:
+        check(ask, age=60)
+        print(f"{label:<38}: ACCEPTED")
+    except credential_status.StatusError as error:
+        print(f"{label:<38}: refused -- {scrub(error)[:58]}")
+
+```
+
+```output
+fresh signed active                   : accepted, age within the 60s limit
+revoked                               : refused -- credential status is revoked, not active
+suspended                             : refused -- credential status is suspended, not active
+unknown                               : refused -- credential status is unknown, not active
+stale (120s old, limit 60s)           : refused -- status statement is 120s old, older than the 60s this town
+expired valid_until                   : refused -- status statement expired at <timestamp>
+signed by another key                 : refused -- status statement signature does not verify
+unsigned                              : refused -- status statement is not signed with the expected proof typ
+altered after signing                 : refused -- status statement signature does not verify
+registrar unreachable                 : refused -- registrar unreachable: connection refused
+```
