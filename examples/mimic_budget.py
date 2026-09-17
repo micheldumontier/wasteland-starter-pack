@@ -41,14 +41,38 @@ def _setting(name, default, cast=int):
         return default
 
 
-def _pack(ids):
-    return zlib.compress(array.array("q", sorted(ids)).tobytes(), 6)
+def _pack(indices, width):
+    """Membership as a bitmap over the ledger's dense index space.
+
+    A cohort is a subset of a fixed universe, so a bitmap is the natural
+    representation: comparing two of them is a bitwise AND and a popcount, both
+    of which run in C. Sets of a hundred thousand Python integers do not.
+    """
+    bitmap = bytearray((width + 7) // 8)
+    for index in indices:
+        bitmap[index >> 3] |= 1 << (index & 7)
+    return zlib.compress(bytes(bitmap), 6)
 
 
 def _unpack(blob):
-    values = array.array("q")
-    values.frombytes(zlib.decompress(blob))
-    return set(values)
+    """The bitmap as one big integer, for bitwise comparison.
+
+    Little-endian, so that index *i* is bit *i* whatever the stored width. A
+    bitmap written when the universe was smaller must still compare correctly
+    against one written later.
+    """
+    return int.from_bytes(zlib.decompress(blob), "little")
+
+
+def _difference_counts(first, first_size, second, second_size):
+    """|first - second| and |second - first|, exactly.
+
+    Both follow from the size of the intersection, which is the population count
+    of the bitwise AND -- one C-level operation over a few kilobytes, whatever
+    the cohort size.
+    """
+    shared = (first & second).bit_count()
+    return first_size - shared, second_size - shared
 
 
 class CohortLedger:
@@ -64,11 +88,37 @@ class CohortLedger:
             " recorded TEXT NOT NULL, label TEXT NOT NULL, size INTEGER NOT NULL,"
             " members BLOB NOT NULL)"
         )
+        # Record identifiers are mapped to dense indices so that membership can be
+        # held as a bitmap. The mapping never leaves this file.
+        self.db.execute(
+            "CREATE TABLE IF NOT EXISTS universe ("
+            "member INTEGER PRIMARY KEY, idx INTEGER NOT NULL UNIQUE)"
+        )
         self.db.execute(
             "CREATE INDEX IF NOT EXISTS idx_answered_subject ON answered(subject)"
         )
         self.db.commit()
         self.path.chmod(0o600)
+        self._index = dict(self.db.execute("SELECT member, idx FROM universe"))
+
+    def _indices(self, members, assign=True):
+        """Dense indices for these record ids, assigning new ones when recording."""
+        indices, fresh = [], []
+        for member in members:
+            index = self._index.get(member)
+            if index is None:
+                if not assign:
+                    continue  # never seen: it is in no prior set, which is what we want
+                index = len(self._index)
+                self._index[member] = index
+                fresh.append((member, index))
+            indices.append(index)
+        if fresh:
+            self.db.executemany("INSERT OR IGNORE INTO universe VALUES(?,?)", fresh)
+        return indices
+
+    def _width(self):
+        return max(len(self._index), 1)
 
     def spent(self, subject):
         window = datetime.now(timezone.utc) - timedelta(
@@ -93,15 +143,22 @@ class CohortLedger:
     def check_differencing(self, subject, proposed):
         """Refuse if any proposed set differs slightly from one already answered."""
         history = [
-            (row[0], _unpack(row[1]))
+            (row[0], _unpack(row[1]), row[2])
             for row in self.db.execute(
-                "SELECT label, members FROM answered WHERE subject=? ORDER BY id DESC LIMIT ?",
+                "SELECT label, members, size FROM answered WHERE subject=? ORDER BY id DESC LIMIT ?",
                 (subject, _setting("WASTELAND_MIMIC_HISTORY", DEFAULT_HISTORY)),
             )
         ]
-        for label, members in proposed:
-            for prior_label, prior in history:
-                added, removed = len(members - prior), len(prior - members)
+        # Indices are assigned here too: two groups inside one request must share
+        # an index space to be comparable, and a member never seen before is in no
+        # prior set, so giving it an index changes no earlier comparison.
+        prepared = [(label, self._indices(members), len(members)) for label, members in proposed]
+        width = self._width()
+        prepared = [(label, _unpack(_pack(indices, width)), size)
+                    for label, indices, size in prepared]
+        for label, members, size in prepared:
+            for prior_label, prior, prior_size in history:
+                added, removed = _difference_counts(members, size, prior, prior_size)
                 if 0 < added < MIN_CELL or 0 < removed < MIN_CELL:
                     raise BudgetError(
                         "refused: this request differs from one already answered for "
@@ -111,17 +168,20 @@ class CohortLedger:
                         "change more than one condition"
                     )
             # Compare within this request too, not only against history.
-            history.append((label, members))
+            history.append((label, members, size))
         return True
 
     def record(self, subject, proposed):
         recorded = datetime.now(timezone.utc).isoformat()
+        rows = []
+        for label, members in proposed:
+            indices = self._indices(members)
+            rows.append((subject, recorded, label, len(members), indices))
+        width = self._width()
         self.db.executemany(
             "INSERT INTO answered(subject, recorded, label, size, members) VALUES(?,?,?,?,?)",
-            [
-                (subject, recorded, label, len(members), _pack(members))
-                for label, members in proposed
-            ],
+            [(subject, recorded, label, size, _pack(indices, width))
+             for subject, recorded, label, size, indices in rows],
         )
         self.db.commit()
         self._prune(subject)

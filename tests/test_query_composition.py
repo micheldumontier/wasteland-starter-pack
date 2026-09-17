@@ -73,12 +73,54 @@ class LedgerTests(unittest.TestCase):
         self.assertIn("budget spent", str(caught.exception))
         ledger.check_budget("bob")
 
-    def test_membership_round_trips_exactly(self):
+    def test_membership_survives_storage_exactly(self):
+        """Stored membership must compare as identical to what was recorded."""
         ledger = self.ledger()
         ids = {1, 2, 3, 99999999, 2**40}
         ledger.record("alice", [("cohort", ids)])
-        row = ledger.db.execute("SELECT members FROM answered").fetchone()
-        self.assertEqual(mimic_budget._unpack(row[0]), ids)
+        # An identical set differs by nothing, so it is allowed; one record fewer
+        # differs by one, so it is refused. Both require exact storage.
+        ledger.check_differencing("alice", [("cohort", set(ids))])
+        with self.assertRaises(mimic_budget.BudgetError):
+            ledger.check_differencing("alice", [("cohort", ids - {2**40})])
+
+    def test_membership_compares_correctly_as_the_universe_grows(self):
+        """A set stored early must still compare against one stored later."""
+        ledger = self.ledger()
+        ledger.record("alice", [("early", set(range(100)))])
+        ledger.record("alice", [("late", set(range(100, 9000)))])
+        ledger.check_differencing("alice", [("unrelated", set(range(20000, 40000)))])
+        with self.assertRaises(mimic_budget.BudgetError):
+            ledger.check_differencing("alice", [("nearly early", set(range(97)))])
+
+
+class ScaleTests(unittest.TestCase):
+    """Cohorts at MIMIC-IV cardinality, where a set-based comparison collapsed."""
+
+    def ledger(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        return mimic_budget.CohortLedger(Path(directory.name) / "ledger.sqlite")
+
+    def test_a_large_cohort_is_compared_correctly_against_a_full_history(self):
+        ledger = self.ledger()
+        cohort = set(range(40_000))
+        for _ in range(mimic_budget.DEFAULT_HISTORY // 2):
+            ledger.record("subject", [("cohort", cohort)])
+        # Identical: allowed however long the history.
+        ledger.check_differencing("subject", [("cohort", cohort)])
+        # Four records fewer out of forty thousand: still caught.
+        with self.assertRaises(mimic_budget.BudgetError):
+            ledger.check_differencing("subject", [("cohort", cohort - set(range(4)))])
+        # Genuinely different: allowed.
+        ledger.check_differencing("subject", [("cohort", set(range(60_000, 100_000)))])
+
+    def test_membership_is_stored_compactly(self):
+        """A bitmap, not a list of identifiers: size tracks the universe, not the ids."""
+        ledger = self.ledger()
+        ledger.record("subject", [("cohort", set(range(0, 200_000, 2)))])
+        stored = ledger.db.execute("SELECT LENGTH(members) FROM answered").fetchone()[0]
+        self.assertLess(stored, 100_000, "membership should compress to far below 100k ids")
 
 
 class DifferencingAttackTests(unittest.TestCase):
