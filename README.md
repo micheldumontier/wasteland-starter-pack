@@ -154,8 +154,11 @@ applied to them and the reply says so. Disclosure control is a property of the
 dataset: anything that does not declare itself public, including a credentialed
 MIMIC-IV database, gets the full treatment by default.
 
-See [the service documentation](docs/mimic-service.md) for the query contract,
-the credential flow, and the limits in full.
+[The data access policy](docs/data-access-policy.md) states what leaves this
+machine, how its data use agreement is read and why, which class of request
+requires the requester to hold that entitlement themselves, and what the policy
+does not establish. [The service documentation](docs/mimic-service.md) covers the
+query contract, the credential flow and the limits in full.
 
 ## Work with Robert's three cities
 

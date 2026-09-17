@@ -1,5 +1,10 @@
 # Zerzura: gated, aggregate-only MIMIC service
 
+This describes the mechanics. For *why* the service is gated the way it is —
+how the data use agreement is read, and which class of request requires the
+requester to hold that entitlement themselves — see
+[the data access policy](data-access-policy.md).
+
 Zerzura answers structured queries over a MIMIC-IV-shaped database and returns
 **aggregates only**. No row, identifier or free-text field is ever placed in a
 reply. Two operations are advertised:
