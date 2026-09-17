@@ -44,7 +44,9 @@ exercising the access: "I can run arbitrary analysis over these records, I just
 cannot take them home" describes having access, not receiving a service.
 
 **Zerzura implements no Class B operation.** Section 6 states what would be
-required before it did.
+required before it did, and [a design note](class-b-design-note.md) assesses one
+concrete approach — including a distinction it exposes between a requester who
+directs the analysis and one who merely supplies an artifact the node tests.
 
 ## 3. Reading the data use agreement
 
