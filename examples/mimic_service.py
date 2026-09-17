@@ -231,6 +231,9 @@ def _summarise(values, expired, aggregate):
     return round(median, 2)
 
 
+MISSING = "(missing)"
+
+
 def group_label(key):
     """Stable name for a group, shared with the ledger."""
     return ",".join(f"{k}={v}" for k, v in sorted(key.items())) or "all"
@@ -264,9 +267,15 @@ def run(query, path=None, with_membership=False):
 
     groups = [
         {
-            "key": dict(zip(query["group_by"], key)),
+            "key": {field: MISSING if value is None else value
+                    for field, value in zip(query["group_by"], key)},
             "n": len(values),
             "value": _summarise(values, expired, query["aggregate"]),
+            # A measure can be missing where the record is not: reporting a mean
+            # over fewer records than n, without saying so, would mislead.
+            **({"measured": sum(1 for v in values if v is not None)}
+               if query["aggregate"] in ("mean", "median")
+               and sum(1 for v in values if v is not None) != len(values) else {}),
         }
         for key, (values, expired, _) in buckets.items()
     ]

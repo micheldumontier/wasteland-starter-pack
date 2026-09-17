@@ -22,7 +22,7 @@ CREATE TABLE admissions (
     hadm_id INTEGER PRIMARY KEY,
     subject_id INTEGER NOT NULL,
     admission_type TEXT NOT NULL,
-    insurance TEXT NOT NULL,
+    insurance TEXT,
     race TEXT NOT NULL,
     hospital_expire_flag INTEGER NOT NULL
 );
@@ -31,11 +31,15 @@ CREATE TABLE icustays (
     subject_id INTEGER NOT NULL,
     hadm_id INTEGER NOT NULL,
     first_careunit TEXT NOT NULL,
-    los REAL NOT NULL
+    los REAL
 );
-CREATE INDEX idx_adm_subject ON admissions(subject_id);
-CREATE INDEX idx_icu_hadm ON icustays(hadm_id);
 CREATE TABLE dataset_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+"""
+
+# Applied after bulk loading: building an index once beats maintaining it per row.
+INDEXES = """
+CREATE INDEX IF NOT EXISTS idx_adm_subject ON admissions(subject_id);
+CREATE INDEX IF NOT EXISTS idx_icu_hadm ON icustays(hadm_id);
 """
 
 META = {
@@ -62,6 +66,7 @@ def build(path, patients=1400, seed=20260915):
     rng = random.Random(seed)
     db = sqlite3.connect(path)
     db.executescript(SCHEMA)
+    db.executescript(INDEXES)
     hadm_id = 20000000
     stay_id = 30000000
     for subject_id in range(10000000, 10000000 + patients):

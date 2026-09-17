@@ -67,6 +67,44 @@ class PolicyTests(unittest.TestCase):
         )
 
 
+class LoaderDeclarationTests(unittest.TestCase):
+    """Only the bundled demo may declare itself public without being asked to."""
+
+    def test_the_bundled_demo_declares_itself_public(self):
+        from examples.mimic_load import BUNDLED, descriptor
+        self.assertEqual(descriptor(BUNDLED).get("public"), "true")
+
+    def test_any_other_source_is_not_public_by_default(self):
+        """Loading credentialed data must not inherit the demo's declaration."""
+        from examples.mimic_load import descriptor
+        for source in ("/home/someone/mimic-iv", "/mnt/data", "./elsewhere"):
+            with self.subTest(source=source):
+                self.assertIsNone(descriptor(source).get("public"))
+
+    def test_a_database_built_from_another_source_gets_full_control(self):
+        from examples import mimic_load
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            mimic_fixture.build(root / "seed.sqlite", patients=50)
+            # Re-export the fixture as CSVs so the loader has something to read.
+            import csv, sqlite3
+            db = sqlite3.connect(root / "seed.sqlite")
+            for table, columns in (("patients", ("subject_id", "gender", "anchor_age")),
+                                   ("admissions", ("hadm_id", "subject_id", "admission_type",
+                                                   "insurance", "race", "hospital_expire_flag")),
+                                   ("icustays", ("stay_id", "subject_id", "hadm_id",
+                                                 "first_careunit", "los"))):
+                with (root / f"{table}.csv").open("w", newline="") as handle:
+                    writer = csv.writer(handle)
+                    writer.writerow(columns)
+                    writer.writerows(db.execute(f"SELECT {','.join(columns)} FROM {table}"))
+            db.close()
+            out = root / "loaded.sqlite"
+            mimic_load.build(root, out, mimic_load.descriptor(root))
+            self.assertEqual(service.policy(out)["minimum_cell_size"], service.MIN_CELL)
+            self.assertEqual(service.policy(out)["disclosure_control"], "cell-suppression")
+
+
 class SuppressionFollowsThePolicyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

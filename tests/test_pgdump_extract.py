@@ -87,13 +87,16 @@ class ExtractTests(unittest.TestCase):
         self.assertEqual(counts["icustays"], 2)
         result = service.run({"aggregate": "count", "group_by": ["care_unit"]},
                              self.root / "loaded.sqlite")
-        # Both stays load, but one belongs to a patient whose anchor_age is NULL.
-        # The loader drops that patient - someone with no age cannot be placed in
-        # an age group - so their stay falls out of the join rather than being
-        # counted with an unknown age.
-        self.assertEqual([g["key"]["care_unit"] for g in result["groups"]],
-                         ["Medical Intensive Care Unit (MICU)"])
-        self.assertEqual(result["cohort_size"], 1)
+        # Extracted data is not the bundled demo, so it is not declared public and
+        # receives full disclosure control. The surviving cohort is one stay -
+        # the other patient has a NULL anchor_age and is dropped, since someone
+        # with no age cannot be placed in an age group - and a cohort of one is
+        # withheld entirely rather than reported.
+        self.assertEqual(service.policy(self.root / "loaded.sqlite")["disclosure_control"],
+                         "cell-suppression")
+        self.assertTrue(result["suppressed"])
+        self.assertIsNone(result["cohort_size"])
+        self.assertEqual(result["groups"], [])
 
     def test_a_record_with_a_missing_required_value_is_dropped_not_guessed(self):
         from examples import mimic_load
