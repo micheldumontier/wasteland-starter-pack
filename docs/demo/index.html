@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Zerzura · authorised is not the same as allowed</title>
+<style>
+:root{
+  --ink:#1a1d21; --muted:#5b6470; --faint:#8a93a0; --rule:#e2e6ea;
+  --bg:#fbfcfd; --panel:#fff; --code:#f4f6f8;
+  --no:#a8324a; --yes:#1d6b45; --accent:#2f5d8a;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --ink:#e7eaee; --muted:#9aa4b2; --faint:#6f7a88; --rule:#2a3038;
+  --bg:#14171b; --panel:#191d22; --code:#111418;
+  --no:#e08098; --yes:#6cc292; --accent:#8fb6dd;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.65 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:52rem;margin:0 auto;padding:0 20px}
+header{padding:64px 0 40px;border-bottom:1px solid var(--rule)}
+.kicker{font:600 12px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);margin-bottom:18px}
+h1{font-size:clamp(28px,5vw,42px);line-height:1.15;letter-spacing:-.02em;margin:0 0 18px;font-weight:650}
+.lede{font-size:clamp(17px,2.2vw,20px);color:var(--muted);margin:0;max-width:40rem}
+section{padding:52px 0;border-bottom:1px solid var(--rule)}
+h2{font-size:24px;letter-spacing:-.01em;margin:0 0 8px;font-weight:640}
+h2 .num{font:600 13px/1 var(--mono);color:var(--faint);margin-right:10px;vertical-align:2px}
+.sub{color:var(--muted);margin:0 0 28px;max-width:42rem}
+.card{background:var(--panel);border:1px solid var(--rule);border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:15px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--rule)}
+th{font:600 12px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+tr:last-child td{border-bottom:0}
+td.n,th.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.step{border:1px solid var(--rule);border-radius:10px;background:var(--panel);margin-bottom:10px;overflow:hidden}
+.step summary{padding:14px 16px;cursor:pointer;display:flex;gap:14px;align-items:flex-start;
+  list-style:none;transition:background .12s}
+.step summary::-webkit-details-marker{display:none}
+.step summary:hover{background:var(--code)}
+.badge{flex:none;margin-top:2px;font:600 10px/1.8 var(--mono);letter-spacing:.08em;
+  padding:0 9px;border-radius:99px;text-transform:uppercase}
+.badge.no{background:color-mix(in srgb,var(--no) 14%,transparent);color:var(--no)}
+.badge.yes{background:color-mix(in srgb,var(--yes) 16%,transparent);color:var(--yes)}
+.step .title{font-weight:600}
+.step .why{color:var(--muted);font-size:14.5px;margin-top:3px}
+.step .msg{font-family:var(--mono);font-size:13px;color:var(--no);margin-top:8px;line-height:1.55}
+.step[open] summary{border-bottom:1px solid var(--rule)}
+pre{margin:0;padding:16px;background:var(--code);overflow-x:auto;font-family:var(--mono);
+  font-size:12.5px;line-height:1.6}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:640px){.two{grid-template-columns:1fr}}
+.sum{display:flex;gap:10px;align-items:baseline;font-family:var(--mono);font-size:15px;
+  padding:14px 16px;border-bottom:1px solid var(--rule);flex-wrap:wrap}
+.sum b{font-size:22px;font-weight:650}
+.arith{font-family:var(--mono);font-size:clamp(15px,3.4vw,19px);padding:20px 16px;text-align:center;
+  font-variant-numeric:tabular-nums}
+.arith .r{color:var(--no);font-weight:650}
+.note{font-size:14.5px;color:var(--muted)}
+ul.plain{margin:0;padding-left:1.15em}
+ul.plain li{margin:8px 0;color:var(--muted)}
+ul.plain b{color:var(--ink);font-weight:600}
+.tag{display:inline-block;font:600 10px/1.9 var(--mono);letter-spacing:.07em;text-transform:uppercase;
+  padding:0 8px;border-radius:4px;background:var(--code);color:var(--faint);border:1px solid var(--rule)}
+footer{padding:44px 0 72px;color:var(--muted);font-size:14.5px}
+a{color:var(--accent)}
+code{font-family:var(--mono);font-size:.92em;background:var(--code);padding:1px 5px;border-radius:4px}
+.err{padding:16px;color:var(--no);font-family:var(--mono);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="kicker">Academic Wasteland · Zerzura</div>
+  <h1>Authorised is not the same as allowed.</h1>
+  <p class="lede">Zerzura answers statistical questions about intensive-care patients for
+  people who can prove they may ask — and never releases a record. This page shows a
+  requester getting in, and then being refused anyway.</p>
+</header>
+
+<section id="headline">
+  <h2><span class="num">01</span>What it answers</h2>
+  <p class="sub">Real de-identified records from MIMIC-IV. Every number below was computed
+  by the service itself; nothing on this page is written by hand.</p>
+  <div id="headline-out"></div>
+</section>
+
+<section id="walk">
+  <h2><span class="num">02</span>Getting in</h2>
+  <p class="sub">Eight exchanges, in order, between two towns over a relay. Click any step
+  to read the messages that actually crossed the wire.</p>
+  <div id="walk-out"></div>
+</section>
+
+<section id="diff">
+  <h2><span class="num">03</span>One question too many</h2>
+  <p class="sub">Now the requester is fully admitted: credential verified, key possession
+  proven, undertaking signed. They ask two more questions. Each is legal on its own.</p>
+  <div id="diff-out"></div>
+</section>
+
+<section id="contrast">
+  <h2><span class="num">04</span>The same rows, two policies</h2>
+  <p class="sub">Disclosure control belongs to the data, not to the town. Suppressing a
+  count that anyone can already download protects nothing, so we don't.</p>
+  <div id="contrast-out"></div>
+</section>
+
+<section id="limits">
+  <h2><span class="num">05</span>What this does not establish</h2>
+  <ul class="plain" id="limits-out"></ul>
+</section>
+
+<footer class="wrap">
+  <p id="prov"></p>
+  <p><a href="https://github.com/micheldumontier/wasteland-starter-pack">Source</a> ·
+     <a href="https://github.com/micheldumontier/wasteland-starter-pack/blob/main/docs/data-access-policy.md">Data access policy</a> ·
+     <a href="https://github.com/micheldumontier/wasteland-starter-pack/blob/main/docs/mimic-service.md">Service documentation</a> ·
+     <a href="./evidence.json">The evidence this page renders</a></p>
+</footer>
+</div>
+<script src="./demo.js"></script>
+</body>
+</html>

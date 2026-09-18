@@ -186,7 +186,8 @@ def verify_presentation(presentation, *, credential, query, requester, town, sto
     if not ed25519.verify(signature, message, key):
         raise PresentationError(
             "presentation signature does not verify against the subject key bound "
-            "in the credential; the presenter does not hold this credential"
+            "in the credential; either the presenter does not hold this credential, "
+            "or the request is not the one they signed"
         )
     # Only spend a challenge once the signature is good, so a bad attempt cannot
     # burn a valid requester's challenge.
