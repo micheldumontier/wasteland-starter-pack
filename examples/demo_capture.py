@@ -284,6 +284,34 @@ def differencing(database):
     }
 
 
+def comparison(demo, controlled):
+    """The same questions against the extract we serve and the database we do not.
+
+    Two things differ at once and both matter: the controlled database is three
+    orders of magnitude larger, and because it declares nothing it receives full
+    disclosure control while the openly licensed extract receives none.
+    """
+    queries = [
+        {"title": "ICU stays by care unit",
+         "query": {"aggregate": "count", "group_by": ["care_unit"]}},
+        {"title": "In-hospital mortality by admission type",
+         "query": {"aggregate": "mortality_rate", "group_by": ["admission_type"]}},
+    ]
+    out = []
+    for entry in queries:
+        row = {"title": entry["title"], "query": entry["query"], "sides": {}}
+        for label, database in (("demo", demo), ("controlled", controlled)):
+            result = service.run(entry["query"], database)
+            row["sides"][label] = {
+                "dataset": service.dataset(database),
+                "policy": service.policy(database),
+                "result": result,
+                "withheld": sum(1 for g in result["groups"] if "suppressed" in g),
+            }
+        out.append(row)
+    return out
+
+
 def headline(database):
     """Results worth looking at, so the page is about something."""
     out = {"dataset": service.dataset(database), "queries": []}
@@ -345,7 +373,8 @@ def main():
     if args.real.exists():
         # The path itself is deliberately not recorded: this file is published.
         evidence["real"] = {"headline": headline(args.real),
-                            "differencing": differencing(args.real)}
+                            "differencing": differencing(args.real),
+                            "comparison": comparison(dataset, args.real)}
     args.out.parent.mkdir(parents=True, exist_ok=True)
     evidence = redact(evidence)
     args.out.write_text(json.dumps(evidence, indent=2, sort_keys=True))
