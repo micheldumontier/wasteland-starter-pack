@@ -286,7 +286,7 @@ def handle(message, config):
                 "relay that carries these messages; and cell suppression is not "
                 "differential privacy."
             ),
-            "source": "https://github.com/micheldumontier/wasteland-starter-pack",
+            "source": "https://github.com/micheldumontier/zerzura",
             "text": (
                 "Send operation mimic-schema for the full query contract and "
                 "limits. No credential is needed to read it."
